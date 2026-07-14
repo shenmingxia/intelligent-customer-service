@@ -1,0 +1,229 @@
+﻿# 智能客服后端接口文档
+
+更新时间：2026-07-09
+
+## 基础信息
+
+- 服务框架：FastAPI
+- 默认本地地址：`http://127.0.0.1:8000`
+- 接口统一前缀：`/api`
+- 请求/响应格式：`application/json`
+- 在线 Swagger 文档：`GET /docs`
+- OpenAPI JSON：`GET /openapi.json`
+
+## 当前接口清单
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/health` | 健康检查 |
+| POST | `/api/chat` | 智能客服聊天 |
+| GET | `/` | 网页客服窗口 |
+
+> 说明：Boss 直聘自动打招呼/招呼语生成相关接口和页面已移除，不再提供 `/boss` 或 `/api/boss/greeting`。
+
+## 1. 健康检查
+
+### `GET /health`
+
+用于检查后端服务是否正常运行。
+
+#### 请求参数
+
+无。
+
+#### 响应示例
+
+```json
+{
+  "status": "ok"
+}
+```
+
+#### 响应字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| status | string | 服务状态，正常时为 `ok` |
+
+## 2. 智能客服聊天
+
+### `POST /api/chat`
+
+发送用户消息，返回智能客服回复。支持 FAQ 匹配、简单意图识别、订单查询、退款多轮对话、人工客服转接，以及配置 OpenAI API Key 后的大模型兜底回复。
+
+### 请求体
+
+```json
+{
+  "user_id": "u001",
+  "message": "退款多久到账",
+  "session_id": null
+}
+```
+
+### 请求字段
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| user_id | string | 否 | `guest` | 用户标识，用于生成默认会话 ID |
+| message | string | 是 | 无 | 用户消息，不能为空 |
+| session_id | string/null | 否 | `null` | 会话 ID；首次请求可传 `null`，后续请求建议带上响应中的 `session_id` 以保持多轮上下文 |
+
+### 响应示例
+
+```json
+{
+  "reply": "退款审核通过后，通常 1-3 个工作日原路退回。银行或支付平台处理时间可能略有差异。",
+  "intent": "refund_time",
+  "confidence": 0.5,
+  "need_human": false,
+  "session_id": "u001-xxxxxxxx",
+  "context": {
+    "turn_count": "0"
+  }
+}
+```
+
+### 响应字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| reply | string | 客服回复内容 |
+| intent | string | 命中的意图或处理分支 |
+| confidence | number | 置信度，范围通常为 0 到 1 |
+| need_human | boolean | 是否建议或已触发人工客服转接 |
+| session_id | string | 当前会话 ID，前端/调用方应保存并在后续请求中继续传入 |
+| context | object | 当前会话上下文，例如订单号、退款状态、待补充意图、对话轮数等 |
+
+### 常见 intent 值
+
+| intent | 说明 |
+| --- | --- |
+| greeting | 问候 |
+| order_status | 订单/物流查询，需要继续提供订单号 |
+| order_status_followup | 已根据补充订单号返回订单状态 |
+| refund | 退款/退货/取消订单意图，需要补充订单号或原因 |
+| refund_followup | 已记录订单号，继续要求补充退款原因 |
+| refund_reason_followup | 已记录退款原因并进入售后预处理 |
+| refund_order_not_found | 退款场景下未查询到订单 |
+| refund_unpaid_cancel | 未付款订单，可直接取消 |
+| refund_need_human | 退款场景建议转人工处理 |
+| complaint | 投诉/不满意 |
+| human_handoff | 已触发人工客服转接 |
+| llm_answer | 未命中规则时由大模型生成回复 |
+| unknown | 未识别意图，且没有可用大模型回复 |
+
+### 多轮对话示例：订单查询
+
+首次请求：
+
+```json
+{
+  "user_id": "u001",
+  "message": "我要查订单",
+  "session_id": null
+}
+```
+
+示例响应：
+
+```json
+{
+  "reply": "请提供您的订单号，我可以帮您查询订单状态。",
+  "intent": "order_status",
+  "confidence": 0.75,
+  "need_human": false,
+  "session_id": "u001-xxxxxxxx",
+  "context": {
+    "pending_intent": "order_status",
+    "turn_count": "0"
+  }
+}
+```
+
+后续请求需带上同一个 `session_id`：
+
+```json
+{
+  "user_id": "u001",
+  "message": "A123456",
+  "session_id": "u001-xxxxxxxx"
+}
+```
+
+### 多轮对话示例：退款
+
+```json
+{
+  "user_id": "u001",
+  "message": "我要退款",
+  "session_id": null
+}
+```
+
+如果客服要求补充订单号，继续发送：
+
+```json
+{
+  "user_id": "u001",
+  "message": "订单号 B987654",
+  "session_id": "u001-xxxxxxxx"
+}
+```
+
+如果客服要求补充退款原因，继续发送：
+
+```json
+{
+  "user_id": "u001",
+  "message": "买错了，想退货退款",
+  "session_id": "u001-xxxxxxxx"
+}
+```
+
+### curl 调用示例
+
+PowerShell：
+
+```powershell
+curl -X POST "http://127.0.0.1:8000/api/chat" `
+  -H "Content-Type: application/json" `
+  -d '{"user_id":"u001","message":"退款多久到账","session_id":null}'
+```
+
+## 3. 网页客服窗口
+
+### `GET /`
+
+返回前端聊天页面 `app/static/index.html`。该页面会调用 `/api/chat`，并在浏览器本地保存 `session_id` 来维持多轮对话。
+
+## 错误响应
+
+FastAPI/Pydantic 会对请求体进行自动校验。常见错误：
+
+### 422 参数校验失败
+
+当 `message` 为空或缺失时，会返回 `422 Unprocessable Entity`。
+
+示例：
+
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["body", "message"],
+      "msg": "Field required"
+    }
+  ]
+}
+```
+
+## 已移除接口
+
+以下接口/页面已从当前版本移除：
+
+| 方法 | 路径 | 原用途 |
+| --- | --- | --- |
+| GET | `/boss` | Boss 直聘招呼语页面 |
+| POST | `/api/boss/greeting` | 生成 Boss 直聘招呼语 |

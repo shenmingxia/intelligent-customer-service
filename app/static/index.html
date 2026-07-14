@@ -1,0 +1,49 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>智能客服助手</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero" aria-label="客服介绍">
+        <p class="eyebrow">Smart Support Desk</p>
+        <h1>把常见问题，变成即时答案。</h1>
+        <p class="lead">一个可视化智能客服窗口，已接入当前 FastAPI 后端，可继续升级大模型、订单查询和知识库检索。</p>
+        <div class="metrics" aria-label="能力概览">
+          <span><strong>FAQ</strong>知识库</span>
+          <span><strong>Intent</strong>意图识别</span>
+          <span><strong>Human</strong>人工转接</span>
+        </div>
+      </section>
+
+      <section class="chat-card" aria-label="聊天窗口">
+        <header class="chat-header">
+          <div>
+            <span class="status-dot"></span>
+            <strong>在线客服</strong>
+            <p>通常 1 秒内回复</p>
+          </div>
+          <button id="clearChat" class="ghost-button" type="button">清空</button>
+        </header>
+
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <div class="quick-actions" aria-label="快捷问题">
+          <button type="button" data-message="退款多久到账">退款多久到账</button>
+          <button type="button" data-message="运费怎么算">运费怎么算</button>
+          <button type="button" data-message="我要转人工">转人工</button>
+        </div>
+
+        <form id="chatForm" class="composer">
+          <input id="messageInput" name="message" type="text" autocomplete="off" placeholder="输入问题，例如：可以开发票吗？" required />
+          <button type="submit">发送</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

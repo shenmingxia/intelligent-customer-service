@@ -1,0 +1,46 @@
+[
+  {
+    "order_id": "A123456",
+    "status": "已发货",
+    "tracking_company": "顺丰速运",
+    "tracking_number": "SF1234567890",
+    "estimated_delivery": "明天 18:00 前",
+    "amount": 199.0,
+    "refund_status": "未申请退款",
+    "refundable": true,
+    "refund_tip": "商品已发货，提交原因后将进入售后预审。"
+  },
+  {
+    "order_id": "B987654",
+    "status": "已签收",
+    "tracking_company": "中通快递",
+    "tracking_number": "ZT9876543210",
+    "estimated_delivery": "已于今天 10:30 签收",
+    "amount": 89.9,
+    "refund_status": "可申请售后",
+    "refundable": true,
+    "refund_tip": "订单已签收，可提交退货退款申请。"
+  },
+  {
+    "order_id": "C202406",
+    "status": "待付款",
+    "tracking_company": "",
+    "tracking_number": "",
+    "estimated_delivery": "付款后预计 48 小时内发货",
+    "amount": 329.0,
+    "refund_status": "未付款订单可直接取消",
+    "refundable": true,
+    "refund_tip": "未付款订单无需退款，可直接取消订单。"
+  },
+  {
+    "order_id": "D111111",
+    "status": "已完成",
+    "tracking_company": "圆通速递",
+    "tracking_number": "YT1111111111",
+    "estimated_delivery": "已于 15 天前签收",
+    "amount": 459.0,
+    "refund_status": "已超过自助售后期限",
+    "refundable": false,
+    "refund_tip": "该订单需要人工客服核验售后条件。"
+  }
+]
