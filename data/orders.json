@@ -8,7 +8,12 @@
     "amount": 199.0,
     "refund_status": "未申请退款",
     "refundable": true,
-    "refund_tip": "商品已发货，提交原因后将进入售后预审。"
+    "refund_tip": "商品已发货，提交原因后将进入售后预审。",
+    "owner_user_ids": [
+      "test",
+      "api-order",
+      "web-user"
+    ]
   },
   {
     "order_id": "B987654",
@@ -19,7 +24,12 @@
     "amount": 89.9,
     "refund_status": "可申请售后",
     "refundable": true,
-    "refund_tip": "订单已签收，可提交退货退款申请。"
+    "refund_tip": "订单已签收，可提交退货退款申请。",
+    "owner_user_ids": [
+      "test",
+      "api-order",
+      "web-user"
+    ]
   },
   {
     "order_id": "C202406",
@@ -30,7 +40,12 @@
     "amount": 329.0,
     "refund_status": "未付款订单可直接取消",
     "refundable": true,
-    "refund_tip": "未付款订单无需退款，可直接取消订单。"
+    "refund_tip": "未付款订单无需退款，可直接取消订单。",
+    "owner_user_ids": [
+      "test",
+      "api-order",
+      "web-user"
+    ]
   },
   {
     "order_id": "D111111",
@@ -41,6 +56,11 @@
     "amount": 459.0,
     "refund_status": "已超过自助售后期限",
     "refundable": false,
-    "refund_tip": "该订单需要人工客服核验售后条件。"
+    "refund_tip": "该订单需要人工客服核验售后条件。",
+    "owner_user_ids": [
+      "test",
+      "api-order",
+      "web-user"
+    ]
   }
 ]
