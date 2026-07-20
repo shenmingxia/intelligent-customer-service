@@ -8,7 +8,7 @@ client = TestClient(app)
 
 
 def setup_function() -> None:
-    assistant.sessions.clear()
+    assistant.session_store.clear()
 
 
 def test_health_endpoint_returns_ok():
@@ -57,13 +57,17 @@ def test_chat_endpoint_validates_required_message():
     response = client.post("/api/chat", json={"user_id": "api-test"})
 
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"] == ["body", "message"]
+    payload = response.json()
+    assert payload["error"]["code"] == "validation_error"
+    assert payload["error"]["details"][0]["loc"] == ["body", "message"]
+    assert response.headers["x-request-id"] == payload["error"]["request_id"]
 
 
 def test_removed_boss_greeting_endpoint_returns_404():
     response = client.post("/api/boss/greeting", json={})
 
     assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
 
 
 def test_openapi_schema_contains_current_routes_only():
@@ -77,3 +81,25 @@ def test_openapi_schema_contains_current_routes_only():
     assert "/" in schema["paths"]
     assert "/api/boss/greeting" not in schema["paths"]
     assert "/boss" not in schema["paths"]
+
+
+def test_chat_endpoint_rejects_session_owned_by_another_user():
+    first = client.post(
+        "/api/chat",
+        json={"user_id": "api-owner", "message": "我要查订单", "session_id": None},
+    )
+    assert first.status_code == 200
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "user_id": "api-other",
+            "message": "A123456",
+            "session_id": first.json()["session_id"],
+        },
+    )
+
+    assert response.status_code == 403
+    payload = response.json()
+    assert payload["error"]["code"] == "forbidden"
+    assert payload["error"]["message"] == "session_id does not belong to this user"
