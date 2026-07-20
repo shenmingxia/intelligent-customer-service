@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatRequest(BaseModel):
@@ -47,3 +47,16 @@ class ChatResponse(BaseModel):
         default_factory=dict,
         description="当前会话上下文，例如订单号、退款状态、待补充意图、对话轮数等",
     )
+
+
+class FaqItem(BaseModel):
+    intent: str = Field(..., min_length=1, description="FAQ ????????")
+    question: str = Field(..., min_length=1, description="FAQ ????")
+    keywords: list[str] = Field(default_factory=list, description="????????")
+    answer: str = Field(..., min_length=1, description="FAQ ??")
+
+
+class AdminSettings(BaseModel):
+    human_keywords: list[str] = Field(default_factory=list, description="??????????")
+    fallback_reply: str = Field(..., min_length=1, description="????")
+

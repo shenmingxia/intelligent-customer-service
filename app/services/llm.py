@@ -1,11 +1,16 @@
 ﻿from __future__ import annotations
 
 import os
+import logging
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+DEFAULT_TIMEOUT_SECONDS = 10.0
+DEFAULT_MAX_RETRIES = 1
 
 
 @dataclass
@@ -18,6 +23,8 @@ class LlmService:
     def __init__(self, model: str | None = None) -> None:
         self.api_key = os.getenv("OPENAI_API_KEY")
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.5")
+        self.timeout_seconds = _read_float_env("OPENAI_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+        self.max_retries = _read_int_env("OPENAI_MAX_RETRIES", DEFAULT_MAX_RETRIES)
         self.enabled = bool(self.api_key)
         self._client = None
 
@@ -30,15 +37,21 @@ class LlmService:
         if not self.enabled:
             return None
 
-        client = self._get_client()
-        prompt = self._build_prompt(message, context, history)
+        try:
+            client = self._get_client()
+            prompt = self._build_prompt(message, context, history)
 
-        response = client.responses.create(
-            model=self.model,
-            reasoning={"effort": os.getenv("OPENAI_REASONING_EFFORT", "low")},
-            input=prompt,
-        )
-        reply = getattr(response, "output_text", "").strip()
+            response = client.responses.create(
+                model=self.model,
+                reasoning={"effort": os.getenv("OPENAI_REASONING_EFFORT", "low")},
+                input=prompt,
+                timeout=self.timeout_seconds,
+            )
+            reply = getattr(response, "output_text", "").strip()
+        except Exception as exc:
+            logger.warning("LLM fallback failed; using rule fallback. error=%s", exc)
+            return None
+
         if not reply:
             return None
         return LlmResult(reply=reply)
@@ -47,7 +60,11 @@ class LlmService:
         if self._client is None:
             from openai import OpenAI
 
-            self._client = OpenAI(api_key=self.api_key)
+            self._client = OpenAI(
+                api_key=self.api_key,
+                max_retries=self.max_retries,
+                timeout=self.timeout_seconds,
+            )
         return self._client
 
     def _build_prompt(
@@ -70,3 +87,17 @@ class LlmService:
 最近对话：{recent_history}
 用户最新消息：{message}
 """.strip()
+
+
+def _read_float_env(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _read_int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default

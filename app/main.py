@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.errors import setup_exception_handlers
+from app.routers.admin import router as admin_router
 from app.routers.chat import router as chat_router
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -23,7 +25,9 @@ app = FastAPI(
     ],
 )
 
+setup_exception_handlers(app)
 app.include_router(chat_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -35,6 +39,16 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 )
 def chat_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get(
+    "/admin",
+    tags=["system"],
+    summary="管理员后台",
+    description="返回 FAQ 和人工转接规则管理页面。",
+)
+def admin_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "admin.html")
 
 
 @app.get(
