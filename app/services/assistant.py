@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,9 @@ from app.services.intent import IntentClassifier
 from app.services.llm import LlmService
 from app.services.order import OrderService
 from app.services.policy import PolicyService
+from app.services.session_store import SessionOwnershipError, SessionStore, build_session_store
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -23,6 +27,7 @@ class AssistantConfig:
 @dataclass
 class ConversationState:
     session_id: str
+    user_id: str
     pending_intent: str | None = None
     slots: dict[str, str] | None = None
     turns: list[dict[str, str]] | None = None
@@ -41,6 +46,7 @@ class CustomerServiceAssistant:
         config: AssistantConfig,
         order_service: OrderService,
         llm: LlmService | None = None,
+        session_store: SessionStore | None = None,
     ) -> None:
         self.faq = faq
         self.intent_classifier = intent_classifier
@@ -48,7 +54,11 @@ class CustomerServiceAssistant:
         self.config = config
         self.order_service = order_service
         self.llm = llm or LlmService()
-        self.sessions: dict[str, ConversationState] = {}
+        self.session_store = session_store or build_session_store()
+
+    @property
+    def sessions(self) -> dict[str, ConversationState]:
+        return getattr(self.session_store, "sessions", {})
 
     @classmethod
     def from_default_files(cls) -> "CustomerServiceAssistant":
@@ -59,7 +69,7 @@ class CustomerServiceAssistant:
             intent_classifier=IntentClassifier(),
             policy=PolicyService(),
             config=AssistantConfig(**config_data),
-            order_service=OrderService(root / "data" / "orders.json"),
+            order_service=OrderService.from_default_source(root / "data" / "orders.json"),
         )
 
     def handle(self, request: ChatRequest) -> ChatResponse:
@@ -115,9 +125,14 @@ class CustomerServiceAssistant:
 
     def _get_state(self, request: ChatRequest) -> ConversationState:
         session_id = request.session_id or f"{request.user_id}-{uuid4().hex[:8]}"
-        if session_id not in self.sessions:
-            self.sessions[session_id] = ConversationState(session_id=session_id)
-        return self.sessions[session_id]
+        raw_state = self.session_store.get(session_id)
+        if raw_state is None:
+            return ConversationState(session_id=session_id, user_id=request.user_id)
+
+        state = ConversationState(**raw_state)
+        if state.user_id != request.user_id:
+            raise SessionOwnershipError("session belongs to another user")
+        return state
 
     def _handle_follow_up(self, state: ConversationState, message: str) -> ChatResponse | None:
         if state.pending_intent not in {"order_status", "refund", "refund_reason"}:
@@ -129,7 +144,7 @@ class CustomerServiceAssistant:
 
         if state.pending_intent == "order_status" and order_id:
             state.pending_intent = None
-            reply = self._build_order_status_reply(order_id)
+            reply = self._build_order_status_reply(order_id, state.user_id)
             return ChatResponse(
                 reply=reply,
                 intent="order_status_followup",
@@ -144,7 +159,7 @@ class CustomerServiceAssistant:
                 return refund_response
 
             state.pending_intent = "refund_reason"
-            reply = self._build_refund_reason_prompt(order_id)
+            reply = self._build_refund_reason_prompt(order_id, state.user_id)
             return ChatResponse(
                 reply=reply,
                 intent="refund_followup",
@@ -157,7 +172,7 @@ class CustomerServiceAssistant:
             reason = message[:80]
             state.slots["refund_reason"] = reason
             state.pending_intent = None
-            reply = self._build_refund_submit_reply(state.slots["order_id"], reason)
+            reply = self._build_refund_submit_reply(state.slots["order_id"], state.user_id, reason)
             return ChatResponse(
                 reply=reply,
                 intent="refund_reason_followup",
@@ -186,8 +201,8 @@ class CustomerServiceAssistant:
             state.pending_intent = intent
         return replies.get(intent, self.config.fallback_reply)
 
-    def _build_order_status_reply(self, order_id: str) -> str:
-        order = self.order_service.find_by_id(order_id)
+    def _build_order_status_reply(self, order_id: str, user_id: str) -> str:
+        order = self.order_service.find_by_id(order_id, user_id)
         if order is None:
             return f"没有查询到订单 {order_id}。请确认订单号是否正确，或输入“转人工”让客服帮您核对。"
 
@@ -207,7 +222,7 @@ class CustomerServiceAssistant:
         state: ConversationState,
         order_id: str,
     ) -> ChatResponse | None:
-        order = self.order_service.find_by_id(order_id)
+        order = self.order_service.find_by_id(order_id, state.user_id)
         if order is None:
             state.slots.pop("order_id", None)
             return ChatResponse(
@@ -251,8 +266,8 @@ class CustomerServiceAssistant:
 
         return None
 
-    def _build_refund_reason_prompt(self, order_id: str) -> str:
-        order = self.order_service.find_by_id(order_id)
+    def _build_refund_reason_prompt(self, order_id: str, user_id: str) -> str:
+        order = self.order_service.find_by_id(order_id, user_id)
         if order is None:
             return f"已记录退款订单 {order_id}。请再补充退款原因，我会帮您整理售后申请。"
         return (
@@ -261,8 +276,8 @@ class CustomerServiceAssistant:
             f"{order.refund_tip}请补充退款原因。"
         )
 
-    def _build_refund_submit_reply(self, order_id: str, reason: str) -> str:
-        order = self.order_service.find_by_id(order_id)
+    def _build_refund_submit_reply(self, order_id: str, user_id: str, reason: str) -> str:
+        order = self.order_service.find_by_id(order_id, user_id)
         if order is None:
             return f"已记录退款原因：{reason}。但没有查询到订单 {order_id}，建议转人工核对。"
         return (
@@ -272,11 +287,15 @@ class CustomerServiceAssistant:
         )
 
     def _reply_with_llm(self, message: str, state: ConversationState) -> ChatResponse | None:
-        result = self.llm.generate_reply(
-            message=message,
-            context=self._context(state),
-            history=state.turns,
-        )
+        try:
+            result = self.llm.generate_reply(
+                message=message,
+                context=self._context(state),
+                history=state.turns,
+            )
+        except Exception as exc:
+            logger.warning("LLM service failed; using configured fallback reply. error=%s", exc)
+            return None
         if result is None:
             return None
         return ChatResponse(
@@ -291,6 +310,7 @@ class CustomerServiceAssistant:
         state.turns.append({"role": "user", "content": user_message})
         state.turns.append({"role": "assistant", "content": assistant_reply})
         state.turns = state.turns[-12:]
+        self.session_store.save(state)
 
     def _context(self, state: ConversationState) -> dict[str, str]:
         context = dict(state.slots)
