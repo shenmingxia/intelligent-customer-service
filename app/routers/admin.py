@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
-from app.schemas import AdminSettings, FaqItem
+from app.schemas import AdminSettings, FaqItem, FeedbackTopItem
 from app.services.admin_store import AdminStore
 from app.services.assistant import AssistantConfig
 from app.services.faq import FaqService
@@ -72,3 +72,8 @@ def update_settings(settings: AdminSettings, _: None = Depends(require_admin_tok
     saved_settings = store.update_settings(settings)
     refresh_assistant()
     return saved_settings
+
+
+@router.get("/feedback/top", response_model=list[FeedbackTopItem], summary="Top downvoted questions")
+def top_feedback(_: None = Depends(require_admin_token)) -> list[dict]:
+    return store.top_downvoted_questions(limit=10)

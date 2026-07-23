@@ -228,6 +228,40 @@ h1 {
   font-size: 0.74rem;
 }
 
+.feedback {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-family: 'Trebuchet MS', Verdana, sans-serif;
+  font-size: 0.78rem;
+}
+
+.feedback button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 253, 247, 0.78);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.feedback button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.feedback-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
 .typing .bubble {
   display: flex;
   gap: 5px;

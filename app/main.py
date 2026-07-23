@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.errors import setup_exception_handlers
 from app.routers.admin import router as admin_router
 from app.routers.chat import router as chat_router
+from app.routers.feedback import router as feedback_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -27,6 +28,7 @@ app = FastAPI(
 
 setup_exception_handlers(app)
 app.include_router(chat_router, prefix="/api")
+app.include_router(feedback_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

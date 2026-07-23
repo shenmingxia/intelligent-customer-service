@@ -150,7 +150,18 @@ button.danger {
   gap: 12px;
 }
 
-.faq-item {
+.feedback-top-list {
+  display: grid;
+  gap: 12px;
+}
+
+.section-note {
+  margin: -6px 0 18px;
+  color: var(--muted);
+}
+
+.faq-item,
+.feedback-top-item {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
@@ -161,12 +172,19 @@ button.danger {
   background: rgba(255, 255, 255, 0.5);
 }
 
-.faq-item strong {
+.feedback-top-item {
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.faq-item strong,
+.feedback-top-item strong {
   display: block;
   margin-bottom: 4px;
 }
 
-.faq-item p {
+.faq-item p,
+.feedback-top-item p {
   margin: 0;
   color: var(--muted);
 }

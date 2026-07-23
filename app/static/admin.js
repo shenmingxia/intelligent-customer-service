@@ -4,6 +4,7 @@ const statusText = document.querySelector('#statusText');
 const faqForm = document.querySelector('#faqForm');
 const settingsForm = document.querySelector('#settingsForm');
 const faqList = document.querySelector('#faqList');
+const feedbackTopList = document.querySelector('#feedbackTopList');
 
 const fields = {
   intent: document.querySelector('#faqIntent'),
@@ -92,13 +93,45 @@ function renderFaq(items) {
   });
 }
 
+function renderFeedbackTop(items) {
+  feedbackTopList.innerHTML = '';
+  if (!items.length) {
+    feedbackTopList.textContent = '暂无反馈数据。';
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const row = document.createElement('article');
+    row.className = 'feedback-top-item';
+
+    const rate = Math.round(item.downvote_rate * 100);
+    const reasons = Object.entries(item.reasons || {})
+      .map(([reason, count]) => `${reason} ${count}`)
+      .join(' / ') || '暂无点踩原因';
+
+    const title = document.createElement('strong');
+    title.textContent = `#${index + 1} ${item.question}`;
+    const stats = document.createElement('p');
+    stats.textContent = `点踩率：${rate}% · 点踩 ${item.downvotes} / 反馈 ${item.total_feedback} · 意图：${item.intent}`;
+    const reasonLine = document.createElement('p');
+    reasonLine.textContent = `原因：${reasons}`;
+    const reply = document.createElement('p');
+    reply.textContent = `最近回复：${item.latest_reply}`;
+
+    row.append(title, stats, reasonLine, reply);
+    feedbackTopList.appendChild(row);
+  });
+}
+
 async function loadData() {
   setStatus('加载中...');
-  const [faqItems, settings] = await Promise.all([
+  const [faqItems, settings, feedbackTop] = await Promise.all([
     api('/api/admin/faq'),
     api('/api/admin/settings'),
+    api('/api/admin/feedback/top'),
   ]);
   renderFaq(faqItems);
+  renderFeedbackTop(feedbackTop);
   fields.humanKeywords.value = (settings.human_keywords || []).join('，');
   fields.fallbackReply.value = settings.fallback_reply || '';
   setStatus('已同步');

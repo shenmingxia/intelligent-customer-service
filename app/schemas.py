@@ -60,3 +60,27 @@ class AdminSettings(BaseModel):
     human_keywords: list[str] = Field(default_factory=list, description="??????????")
     fallback_reply: str = Field(..., min_length=1, description="????")
 
+
+class FeedbackRequest(BaseModel):
+    user_id: str = Field(default="guest", description="User identifier")
+    session_id: str | None = Field(default=None, description="Session ID for the rated answer")
+    user_message: str = Field(..., min_length=1, description="User question that produced the rated answer")
+    assistant_reply: str = Field(..., min_length=1, description="Assistant answer being rated")
+    intent: str = Field(default="unknown", description="Intent returned by the chat API")
+    rating: str = Field(..., pattern="^(useful|not_useful)$", description="Feedback rating")
+    reason: str | None = Field(default=None, description="Optional downvote reason")
+
+
+class FeedbackResponse(BaseModel):
+    status: str = Field(default="ok")
+
+
+class FeedbackTopItem(BaseModel):
+    question: str
+    total_feedback: int
+    downvotes: int
+    downvote_rate: float
+    intent: str = "unknown"
+    latest_reply: str = ""
+    reasons: dict[str, int] = Field(default_factory=dict)
+

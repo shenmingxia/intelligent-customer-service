@@ -1,0 +1,11 @@
+[
+  {
+    "user_id": "web-user",
+    "session_id": "web-user-237571b9",
+    "user_message": "退款多久到账",
+    "assistant_reply": "退款审核通过后，通常 1-3 个工作日原路退回。银行或支付平台处理时间可能略有差异。",
+    "intent": "refund_time",
+    "rating": "useful",
+    "reason": null
+  }
+]

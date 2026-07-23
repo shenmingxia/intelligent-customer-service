@@ -4,42 +4,73 @@
 
 ## 已包含能力
 
-- FAQ 问答匹配
-- 简单意图识别
-- OpenAI 大模型回答，未配置 Key 时自动回退到规则逻辑
-- 人工客服转接规则
-- REST API 接口
-- 网页聊天窗口
-- 多轮对话记忆，支持订单号、退款原因等上下文槽位
-- 配置文件和示例知识库
-- 后续可接入数据库、向量检索、企业微信/网页聊天窗口
+- 用户端网页客服窗口：支持输入消息、快捷问题、清空会话，并在浏览器本地保存 `session_id`。
+- 智能聊天接口：`POST /api/chat`，返回客服回复、意图、置信度、是否转人工、会话 ID 和上下文。
+- FAQ 自动问答：支持运费、退款到账时间、发票、客服工作时间等常见问题。
+- 简单意图识别：支持问候、订单/物流查询、退款/退货/取消、投诉等意图。
+- 多轮对话记忆：支持订单查询补充订单号，以及退款流程中补充订单号、退款原因等上下文槽位。
+- 订单与物流查询：可返回订单状态、物流公司、物流单号、预计送达时间和订单金额。
+- 退款售后流程：支持可退款订单预处理、未付款订单取消提示、超出售后期限转人工、未查到订单提示。
+- 人工客服转接：命中“人工”“客服”“转人工”“投诉”“经理”等关键词时触发，并返回 `need_human=true`。
+- OpenAI 大模型兜底：配置 `OPENAI_API_KEY` 后，规则和 FAQ 未命中时调用大模型；未配置时自动回退到兜底话术。
+- 回复反馈：每条机器人回复下方支持 `👍有用 / 👎没用`，点踩可选择“答非所问”“没解决我的问题”“太啰嗦”。
+- 反馈分析：后台按点踩率（点踩数 / 总反馈数）展示 Top10 高优先级优化问题。
+- 管理员后台：支持维护 FAQ、人工转接关键词、兜底回复，并可查看点踩率 Top10。
+- 管理鉴权：配置 `ADMIN_TOKEN` 后，后台接口需要请求头 `x-admin-token`。
+- 会话存储：默认使用内存，可通过 `REDIS_URL` 切换到 Redis，并支持 `SESSION_TTL_SECONDS` 控制过期时间。
+- 订单数据源扩展：默认读取 JSON，可通过环境变量接入 SQLite 或 HTTP 订单服务。
+- 系统接口：提供健康检查 `/health`、Swagger 文档 `/docs`、OpenAPI JSON `/openapi.json` 和统一错误响应。
+
 
 ## 项目结构
 
 ```text
 smart_customer_service/
-├─ app/
-│  ├─ main.py
-│  ├─ schemas.py
-│  ├─ static/
-│  │  ├─ index.html
-│  │  ├─ styles.css
-│  │  └─ app.js
-│  ├─ routers/
-│  │  └─ chat.py
-│  └─ services/
-│     ├─ assistant.py
-│     ├─ faq.py
-│     ├─ intent.py
-│     ├─ llm.py
-│     └─ policy.py
-├─ data/
-│  ├─ config.json
-│  └─ faq.json
-├─ tests/
-├─ .env.example
-├─ requirements.txt
-└─ README.md
+|-- app/
+|   |-- __init__.py
+|   |-- errors.py
+|   |-- main.py
+|   |-- schemas.py
+|   |-- routers/
+|   |   |-- __init__.py
+|   |   |-- admin.py
+|   |   |-- chat.py
+|   |   `-- feedback.py
+|   |-- services/
+|   |   |-- __init__.py
+|   |   |-- admin_store.py
+|   |   |-- assistant.py
+|   |   |-- faq.py
+|   |   |-- intent.py
+|   |   |-- llm.py
+|   |   |-- order.py
+|   |   |-- policy.py
+|   |   `-- session_store.py
+|   `-- static/
+|       |-- admin.css
+|       |-- admin.html
+|       |-- admin.js
+|       |-- app.js
+|       |-- index.html
+|       `-- styles.css
+|-- data/
+|   |-- config.json
+|   |-- faq.json
+|   |-- feedback.json
+|   `-- orders.json
+|-- tests/
+|   |-- test_admin.py
+|   |-- test_api.py
+|   |-- test_assistant.py
+|   |-- test_faq.py
+|   |-- test_llm.py
+|   `-- test_order.py
+|-- .env.example
+|-- .gitignore
+|-- init_db.py
+|-- requirements.txt
+|-- 后端接口.txt
+`-- README.md
 ```
 
 ## 启动方式

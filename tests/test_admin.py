@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 import app.routers.admin as admin_router
+import app.routers.feedback as feedback_router
 from app.main import app
 
 
@@ -105,3 +106,58 @@ def test_admin_token_is_required_when_configured(monkeypatch):
 
     assert denied.status_code == 401
     assert allowed.status_code == 200
+
+
+class FakeFeedbackStore:
+    def __init__(self) -> None:
+        self.feedback_items = []
+
+    def add_feedback(self, feedback):
+        payload = feedback.model_dump()
+        self.feedback_items.append(payload)
+        return payload
+
+    def top_downvoted_questions(self, limit=10):
+        return [
+            {
+                "question": "退款多久到账",
+                "total_feedback": 3,
+                "downvotes": 2,
+                "downvote_rate": 0.6667,
+                "intent": "refund_time",
+                "latest_reply": "退款通常 1-3 个工作日到账。",
+                "reasons": {"没解决我的问题": 2},
+            }
+        ][:limit]
+
+
+def test_feedback_endpoint_records_rating():
+    feedback_router.store = FakeFeedbackStore()
+
+    response = client.post(
+        "/api/feedback",
+        json={
+            "user_id": "web-user",
+            "session_id": "web-user-12345678",
+            "user_message": "退款多久到账",
+            "assistant_reply": "退款通常 1-3 个工作日到账。",
+            "intent": "refund_time",
+            "rating": "not_useful",
+            "reason": "没解决我的问题",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert feedback_router.store.feedback_items[0]["rating"] == "not_useful"
+
+
+def test_admin_can_list_top_downvoted_questions():
+    admin_router.store = FakeFeedbackStore()
+
+    response = client.get("/api/admin/feedback/top")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["question"] == "退款多久到账"
+    assert data[0]["downvote_rate"] == 0.6667

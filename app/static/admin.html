@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>智能客服管理后台</title>
-    <link rel="stylesheet" href="/static/admin.css" />
+    <link rel="stylesheet" href="/static/admin.css?v=feedback-1" />
   </head>
   <body>
     <main class="admin-shell">
@@ -45,8 +45,13 @@
         <h2>当前 FAQ</h2>
         <div id="faqList" class="faq-list"></div>
       </section>
+      <section class="panel">
+        <h2>点踩率 Top10 问题</h2>
+        <p class="section-note">按“点踩数 / 总反馈数”排序，排在前面的就是最高优先级优化项。</p>
+        <div id="feedbackTopList" class="feedback-top-list"></div>
+      </section>
     </main>
 
-    <script src="/static/admin.js"></script>
+    <script src="/static/admin.js?v=feedback-1"></script>
   </body>
 </html>
