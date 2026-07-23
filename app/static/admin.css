@@ -155,13 +155,28 @@ button.danger {
   gap: 12px;
 }
 
+.sensitive-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
 .section-note {
   margin: -6px 0 18px;
   color: var(--muted);
 }
 
 .faq-item,
-.feedback-top-item {
+.feedback-top-item,
+.sensitive-item {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
@@ -175,6 +190,38 @@ button.danger {
 .feedback-top-item {
   grid-template-columns: 1fr;
   align-items: start;
+}
+
+.feedback-top-item.status-handled {
+  border-color: rgba(47, 127, 104, 0.34);
+  background: rgba(47, 127, 104, 0.08);
+}
+
+.feedback-top-item.status-ignored {
+  opacity: 0.68;
+}
+
+.feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.feedback-actions button {
+  padding: 9px 12px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.sensitive-item {
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  width: fit-content;
+}
+
+.sensitive-item strong {
+  padding: 0 8px;
 }
 
 .faq-item strong,
@@ -192,6 +239,7 @@ button.danger {
 @media (max-width: 760px) {
   .token-panel,
   .grid,
+  .inline-form,
   .faq-item {
     grid-template-columns: 1fr;
   }

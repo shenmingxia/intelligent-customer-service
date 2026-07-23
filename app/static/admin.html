@@ -1,17 +1,17 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>智能客服管理后台</title>
-    <link rel="stylesheet" href="/static/admin.css?v=feedback-1" />
+    <link rel="stylesheet" href="/static/admin.css?v=sensitive-3" />
   </head>
   <body>
     <main class="admin-shell">
       <header class="admin-hero">
         <p class="eyebrow">Support Console</p>
-        <h1>知识库与人工转接规则</h1>
-        <p>维护 FAQ 答案、同义关键词和转人工触发词，保存后聊天接口会即时生效。</p>
+        <h1>知识库与客服规则管理</h1>
+        <p>维护 FAQ 答案、敏感词、人工转接规则和反馈优化项，保存后聊天接口会即时生效。</p>
       </header>
 
       <section class="panel token-panel">
@@ -27,7 +27,7 @@
         <form id="faqForm" class="panel">
           <h2>FAQ 条目</h2>
           <input id="faqIntent" required placeholder="intent，例如 refund_time" />
-          <input id="faqQuestion" required placeholder="标准问题，例如 退款多久到账？" />
+          <input id="faqQuestion" required placeholder="标准问题，例如：退款多久到账？" />
           <input id="faqKeywords" placeholder="关键词，用逗号分隔" />
           <textarea id="faqAnswer" required rows="5" placeholder="答案"></textarea>
           <button type="submit">保存 FAQ</button>
@@ -45,13 +45,25 @@
         <h2>当前 FAQ</h2>
         <div id="faqList" class="faq-list"></div>
       </section>
+
       <section class="panel">
         <h2>点踩率 Top10 问题</h2>
-        <p class="section-note">按“点踩数 / 总反馈数”排序，排在前面的就是最高优先级优化项。</p>
+        <p class="section-note">按“点踩数 / 总反馈数”排序，可直接新建 FAQ、标记已处理或忽略。</p>
         <div id="feedbackTopList" class="feedback-top-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>敏感词管理</h2>
+        <form id="sensitiveForm" class="inline-form">
+          <input id="sensitiveWord" required placeholder="输入敏感词，例如：暴力" />
+          <input id="sensitiveOriginalWord" type="hidden" />
+          <button type="submit">保存敏感词</button>
+          <button id="cancelSensitiveEdit" class="secondary" type="button">取消编辑</button>
+        </form>
+        <div id="sensitiveList" class="sensitive-list"></div>
       </section>
     </main>
 
-    <script src="/static/admin.js?v=feedback-1"></script>
+    <script src="/static/admin.js?v=sensitive-3"></script>
   </body>
 </html>

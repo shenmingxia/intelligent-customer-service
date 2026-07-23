@@ -1,3 +1,7 @@
+import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from uuid import uuid4
+
 from fastapi import APIRouter, Body, HTTPException, status
 
 from app.schemas import ChatRequest, ChatResponse
@@ -6,6 +10,7 @@ from app.services.session_store import SessionOwnershipError
 
 router = APIRouter(tags=["chat"])
 assistant = CustomerServiceAssistant.from_default_files()
+executor = ThreadPoolExecutor(max_workers=int(os.getenv("CHAT_WORKER_THREADS", "8")))
 
 
 @router.post(
@@ -52,10 +57,27 @@ def chat(
         ],
     ),
 ) -> ChatResponse:
+    request = _ensure_session_id(request)
     try:
-        return assistant.handle(request)
+        future = executor.submit(assistant.handle, request)
+        return future.result(timeout=_answer_timeout_seconds())
+    except TimeoutError:
+        return assistant.build_timeout_response(request)
     except SessionOwnershipError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="session_id does not belong to this user",
         ) from exc
+
+
+def _answer_timeout_seconds() -> float:
+    try:
+        return float(os.getenv("ANSWER_TIMEOUT_SECONDS", "3"))
+    except ValueError:
+        return 3.0
+
+
+def _ensure_session_id(request: ChatRequest) -> ChatRequest:
+    if request.session_id:
+        return request
+    return request.model_copy(update={"session_id": f"{request.user_id}-{uuid4().hex[:8]}"})

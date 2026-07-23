@@ -1,8 +1,11 @@
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 import app.routers.admin as admin_router
 import app.routers.feedback as feedback_router
 from app.main import app
+from app.schemas import FeedbackRequest
+from app.services.admin_store import AdminStore
 
 
 client = TestClient(app)
@@ -43,6 +46,26 @@ class FakeAdminStore:
     def update_settings(self, settings):
         self.settings = settings.model_dump()
         return self.settings
+
+    def list_sensitive_words(self):
+        return [{"word": word} for word in self.sensitive_words]
+
+    def upsert_sensitive_word(self, item):
+        if item.word not in self.sensitive_words:
+            self.sensitive_words.append(item.word)
+        return {"word": item.word}
+
+    def update_sensitive_word(self, old_word, item):
+        if old_word not in self.sensitive_words:
+            return {}
+        self.sensitive_words = [item.word if word == old_word else word for word in self.sensitive_words]
+        return {"word": item.word}
+
+    def delete_sensitive_word(self, word):
+        if word not in self.sensitive_words:
+            return False
+        self.sensitive_words.remove(word)
+        return True
 
 
 def setup_function() -> None:
@@ -130,6 +153,9 @@ class FakeFeedbackStore:
             }
         ][:limit]
 
+    def update_feedback_status(self, question, status):
+        return {"question": question, "status": status}
+
 
 def test_feedback_endpoint_records_rating():
     feedback_router.store = FakeFeedbackStore()
@@ -161,3 +187,90 @@ def test_admin_can_list_top_downvoted_questions():
     data = response.json()
     assert data[0]["question"] == "退款多久到账"
     assert data[0]["downvote_rate"] == 0.6667
+
+
+def test_admin_can_update_feedback_status():
+    admin_router.store = FakeFeedbackStore()
+
+    response = client.put(
+        "/api/admin/feedback/status",
+        json={"question": "refund status", "status": "handled"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"question": "refund status", "status": "handled"}
+
+
+def test_feedback_store_uses_sqlite_for_top_downvoted_questions(monkeypatch):
+    db_path = Path("data/test_feedback_store.db")
+    db_path.unlink(missing_ok=True)
+    db_path.with_suffix(".db-wal").unlink(missing_ok=True)
+    db_path.with_suffix(".db-shm").unlink(missing_ok=True)
+    monkeypatch.setenv("FEEDBACK_DATABASE_URL", str(db_path))
+    store = AdminStore(Path("data/test_feedback_store_data"))
+
+    store.add_feedback(
+        FeedbackRequest(
+            user_id="u1",
+            session_id="s1",
+            user_message="refund status",
+            assistant_reply="refund in 1-3 days",
+            intent="refund_time",
+            rating="not_useful",
+            reason="not solved",
+        )
+    )
+    store.add_feedback(
+        FeedbackRequest(
+            user_id="u2",
+            session_id="s2",
+            user_message="refund status",
+            assistant_reply="refund in 1-3 days",
+            intent="refund_time",
+            rating="useful",
+        )
+    )
+
+    top_items = store.top_downvoted_questions()
+
+    assert db_path.exists()
+    assert top_items[0]["question"] == "refund status"
+    assert top_items[0]["total_feedback"] == 2
+    assert top_items[0]["downvotes"] == 1
+    assert top_items[0]["downvote_rate"] == 0.5
+    assert top_items[0]["reasons"] == {"not solved": 1}
+    assert top_items[0]["status"] == "open"
+
+    store.update_feedback_status("refund status", "handled")
+    handled_items = store.top_downvoted_questions()
+    assert handled_items[0]["status"] == "handled"
+    db_path.unlink(missing_ok=True)
+    db_path.with_suffix(".db-wal").unlink(missing_ok=True)
+    db_path.with_suffix(".db-shm").unlink(missing_ok=True)
+    test_data_dir = Path("data/test_feedback_store_data")
+    if test_data_dir.exists():
+        test_data_dir.rmdir()
+
+
+def test_admin_store_manages_sensitive_words_file(monkeypatch):
+    data_dir = Path("data/test_sensitive_words_data")
+    data_dir.mkdir(exist_ok=True)
+    words_path = data_dir / "sensitive_words.json"
+    words_path.write_text("[]", encoding="utf-8")
+    monkeypatch.setenv("FEEDBACK_DATABASE_URL", "data/test_sensitive_words_feedback.db")
+    db_path = Path("data/test_sensitive_words_feedback.db")
+    db_path.unlink(missing_ok=True)
+
+    store = AdminStore(data_dir)
+    store.upsert_sensitive_word(type("Item", (), {"word": "blocked"})())
+    assert store.list_sensitive_words() == [{"word": "blocked"}]
+    assert store.update_sensitive_word("blocked", type("Item", (), {"word": "blocked2"})()) == {"word": "blocked2"}
+    assert store.delete_sensitive_word("blocked2") is True
+    assert store.list_sensitive_words() == []
+
+    words_path.unlink(missing_ok=True)
+    db_path.unlink(missing_ok=True)
+    db_path.with_suffix(".db-wal").unlink(missing_ok=True)
+    db_path.with_suffix(".db-shm").unlink(missing_ok=True)
+    if data_dir.exists():
+        data_dir.rmdir()

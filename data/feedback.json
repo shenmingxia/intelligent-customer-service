@@ -7,5 +7,50 @@
     "intent": "refund_time",
     "rating": "useful",
     "reason": null
+  },
+  {
+    "user_id": "web-user",
+    "session_id": "web-user-237571b9",
+    "user_message": "退款多久到账",
+    "assistant_reply": "退款审核通过后，通常 1-3 个工作日原路退回。银行或支付平台处理时间可能略有差异。",
+    "intent": "refund_time",
+    "rating": "useful",
+    "reason": null
+  },
+  {
+    "user_id": "web-user",
+    "session_id": "web-user-237571b9",
+    "user_message": "运费怎么算",
+    "assistant_reply": "普通商品满 99 元免运费；未满 99 元时，默认运费为 8 元。特殊地区和大件商品以结算页为准。",
+    "intent": "shipping_fee",
+    "rating": "not_useful",
+    "reason": "没解决我的问题"
+  },
+  {
+    "user_id": "web-user",
+    "session_id": "web-user-237571b9",
+    "user_message": "我要转人工",
+    "assistant_reply": "我已经为您转接人工客服，请稍等。",
+    "intent": "human_handoff",
+    "rating": "not_useful",
+    "reason": "答非所问"
+  },
+  {
+    "user_id": "web-user",
+    "session_id": "web-user-237571b9",
+    "user_message": "运费怎么算",
+    "assistant_reply": "普通商品满 99 元免运费；未满 99 元时，默认运费为 8 元。特殊地区和大件商品以结算页为准。",
+    "intent": "shipping_fee",
+    "rating": "useful",
+    "reason": null
+  },
+  {
+    "user_id": "web-user",
+    "session_id": "web-user-237571b9",
+    "user_message": "暴力",
+    "assistant_reply": "您的提问涉及暴力倾向，暂时无法解答。",
+    "intent": "sensitive_content",
+    "rating": "useful",
+    "reason": null
   }
 ]

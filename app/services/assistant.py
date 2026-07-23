@@ -13,6 +13,7 @@ from app.services.intent import IntentClassifier
 from app.services.llm import LlmService
 from app.services.order import OrderService
 from app.services.policy import PolicyService
+from app.services.safety import DEFAULT_SENSITIVE_REPLY, SensitiveWordFilter
 from app.services.session_store import SessionOwnershipError, SessionStore, build_session_store
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class CustomerServiceAssistant:
         order_service: OrderService,
         llm: LlmService | None = None,
         session_store: SessionStore | None = None,
+        sensitive_filter: SensitiveWordFilter | None = None,
     ) -> None:
         self.faq = faq
         self.intent_classifier = intent_classifier
@@ -55,6 +57,7 @@ class CustomerServiceAssistant:
         self.order_service = order_service
         self.llm = llm or LlmService()
         self.session_store = session_store or build_session_store()
+        self.sensitive_filter = sensitive_filter
 
     @property
     def sessions(self) -> dict[str, ConversationState]:
@@ -70,11 +73,24 @@ class CustomerServiceAssistant:
             policy=PolicyService(),
             config=AssistantConfig(**config_data),
             order_service=OrderService.from_default_source(root / "data" / "orders.json"),
+            sensitive_filter=SensitiveWordFilter(root / "data" / "sensitive_words.json"),
         )
 
     def handle(self, request: ChatRequest) -> ChatResponse:
         message = request.message.strip()
         state = self._get_state(request)
+
+        if self.sensitive_filter and self.sensitive_filter.contains(message):
+            response = ChatResponse(
+                reply=DEFAULT_SENSITIVE_REPLY,
+                intent="sensitive_content",
+                confidence=1.0,
+                need_human=False,
+                session_id=state.session_id,
+                context=self._context(state),
+            )
+            self._remember(state, self.sensitive_filter.mask(message), response.reply)
+            return response
 
         if self.policy.should_transfer_to_human(message, self.config.human_keywords):
             response = ChatResponse(
@@ -117,6 +133,22 @@ class CustomerServiceAssistant:
             reply=reply,
             intent=intent,
             confidence=confidence,
+            session_id=state.session_id,
+            context=self._context(state),
+        )
+        self._remember(state, message, response.reply)
+        return response
+
+    def build_timeout_response(self, request: ChatRequest) -> ChatResponse:
+        message = request.message.strip()
+        state = self._get_state(request)
+        intent = self._infer_timeout_intent(message, state)
+        reply = self._timeout_reply_by_intent(intent)
+        response = ChatResponse(
+            reply=reply,
+            intent=f"timeout_{intent}",
+            confidence=0.6,
+            need_human=True,
             session_id=state.session_id,
             context=self._context(state),
         )
@@ -200,6 +232,34 @@ class CustomerServiceAssistant:
         if intent in {"order_status", "refund"}:
             state.pending_intent = intent
         return replies.get(intent, self.config.fallback_reply)
+
+    def _infer_timeout_intent(self, message: str, state: ConversationState) -> str:
+        if state.pending_intent:
+            return state.pending_intent
+        if self.policy.should_transfer_to_human(message, self.config.human_keywords):
+            return "human_handoff"
+        faq_match = self.faq.search(message)
+        if faq_match is not None:
+            return faq_match["intent"]
+        intent, _ = self.intent_classifier.classify(message)
+        return intent
+
+    def _timeout_reply_by_intent(self, intent: str) -> str:
+        replies = {
+            "greeting": "您好，当前客服响应有点慢。您可以稍后重试，或输入“转人工”由人工客服继续协助。",
+            "order_status": "订单/物流查询暂时响应超时。请稍后重试，或输入“转人工”让客服帮您核对订单。",
+            "refund": "退款/售后查询暂时响应超时。您可以稍后重试，或输入“转人工”让客服优先处理。",
+            "refund_time": "退款到账时间查询暂时响应超时。通常可稍后重试；如果比较着急，请输入“转人工”。",
+            "shipping_fee": "运费规则查询暂时响应超时。请稍后重试，或输入“转人工”咨询具体订单运费。",
+            "invoice": "发票问题查询暂时响应超时。请稍后重试，或输入“转人工”协助开票。",
+            "working_hours": "客服时间查询暂时响应超时。请稍后重试，或输入“转人工”留言处理。",
+            "complaint": "很抱歉当前处理较慢。您的问题可能需要优先关注，建议直接输入“转人工”继续处理，或稍后重试。",
+            "human_handoff": "人工转接请求暂时响应超时。请稍后重试，或再次输入“转人工”。",
+        }
+        return replies.get(
+            intent,
+            f"{self.config.fallback_reply} 当前响应超过 3 秒，您可以稍后重试，或输入“转人工”。",
+        )
 
     def _build_order_status_reply(self, order_id: str, user_id: str) -> str:
         order = self.order_service.find_by_id(order_id, user_id)
@@ -307,6 +367,11 @@ class CustomerServiceAssistant:
         )
 
     def _remember(self, state: ConversationState, user_message: str, assistant_reply: str) -> None:
+        current_state = self.session_store.get(state.session_id)
+        if current_state and len(current_state.get("turns") or []) > len(state.turns or []):
+            logger.info("Skip stale assistant reply for session_id=%s", state.session_id)
+            return
+
         state.turns.append({"role": "user", "content": user_message})
         state.turns.append({"role": "assistant", "content": assistant_reply})
         state.turns = state.turns[-12:]

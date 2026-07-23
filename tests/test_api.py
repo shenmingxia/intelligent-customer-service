@@ -1,10 +1,37 @@
 from fastapi.testclient import TestClient
 
+import app.routers.chat as chat_router
 from app.main import app
+from app.schemas import ChatResponse
 from app.routers.chat import assistant
 
 
 client = TestClient(app)
+
+
+class SlowAssistant:
+    def handle(self, request):
+        import time
+
+        time.sleep(0.05)
+        return ChatResponse(
+            reply="slow reply",
+            intent="unknown",
+            confidence=0.2,
+            need_human=False,
+            session_id=request.session_id or f"{request.user_id}-slow",
+            context={},
+        )
+
+    def build_timeout_response(self, request):
+        return ChatResponse(
+            reply="订单/物流查询暂时响应超时。请稍后重试，或输入“转人工”让客服帮您核对订单。",
+            intent="timeout_order_status",
+            confidence=0.6,
+            need_human=True,
+            session_id=request.session_id or f"{request.user_id}-timeout",
+            context={},
+        )
 
 
 def setup_function() -> None:
@@ -103,3 +130,54 @@ def test_chat_endpoint_rejects_session_owned_by_another_user():
     payload = response.json()
     assert payload["error"]["code"] == "forbidden"
     assert payload["error"]["message"] == "session_id does not belong to this user"
+
+
+def test_chat_endpoint_circuit_breaker_returns_intent_fallback(monkeypatch):
+    monkeypatch.setenv("ANSWER_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setattr(chat_router, "assistant", SlowAssistant())
+
+    response = client.post(
+        "/api/chat",
+        headers={"x-forwarded-for": "203.0.113.88"},
+        json={"user_id": "timeout-user", "message": "我要查订单", "session_id": None},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["intent"] == "timeout_order_status"
+    assert data["need_human"] is True
+    assert "转人工" in data["reply"]
+
+
+def test_chat_endpoint_rate_limit_returns_429():
+    headers = {"x-forwarded-for": "203.0.113.77"}
+
+    for index in range(60):
+        response = client.post(
+            "/api/chat",
+            headers=headers,
+            json={"user_id": "rate-limited-user", "message": "hello", "session_id": None},
+        )
+        assert response.status_code == 200
+
+    limited = client.post(
+        "/api/chat",
+        headers=headers,
+        json={"user_id": "rate-limited-user", "message": "hello", "session_id": None},
+    )
+
+    assert limited.status_code == 429
+    assert limited.json()["error"]["code"] == "rate_limited"
+    assert limited.headers["x-ratelimit-remaining"] == "0"
+
+
+def test_chat_endpoint_rate_limit_uses_user_before_ip():
+    headers = {"x-forwarded-for": "203.0.113.78"}
+
+    for index in range(61):
+        response = client.post(
+            "/api/chat",
+            headers=headers,
+            json={"user_id": f"company-user-{index}", "message": "hello", "session_id": None},
+        )
+        assert response.status_code == 200

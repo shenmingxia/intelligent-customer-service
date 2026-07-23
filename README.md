@@ -45,6 +45,8 @@ smart_customer_service/
 |   |   |-- llm.py
 |   |   |-- order.py
 |   |   |-- policy.py
+|   |   |-- rate_limit.py
+|   |   |-- safety.py
 |   |   `-- session_store.py
 |   `-- static/
 |       |-- admin.css
@@ -56,8 +58,10 @@ smart_customer_service/
 |-- data/
 |   |-- config.json
 |   |-- faq.json
-|   |-- feedback.json
-|   `-- orders.json
+|   |-- feedback.db
+|   |-- feedback.json  # legacy JSON feedback, auto-migrated to SQLite when present
+|   |-- orders.json
+|   `-- sensitive_words.json
 |-- tests/
 |   |-- test_admin.py
 |   |-- test_api.py
@@ -111,6 +115,8 @@ OPENAI_MODEL=gpt-5.5
 OPENAI_REASONING_EFFORT=low
 OPENAI_TIMEOUT_SECONDS=10
 OPENAI_MAX_RETRIES=1
+ANSWER_TIMEOUT_SECONDS=3
+CHAT_WORKER_THREADS=8
 ```
 
 重新启动服务后，规则和 FAQ 无法处理的问题会交给大模型回答。没有配置 `OPENAI_API_KEY` 时，系统会继续使用当前规则逻辑，不会报错。

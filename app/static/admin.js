@@ -1,16 +1,20 @@
-const tokenInput = document.querySelector('#adminToken');
+﻿const tokenInput = document.querySelector('#adminToken');
 const reloadButton = document.querySelector('#reloadData');
 const statusText = document.querySelector('#statusText');
 const faqForm = document.querySelector('#faqForm');
 const settingsForm = document.querySelector('#settingsForm');
+const sensitiveForm = document.querySelector('#sensitiveForm');
 const faqList = document.querySelector('#faqList');
 const feedbackTopList = document.querySelector('#feedbackTopList');
+const sensitiveList = document.querySelector('#sensitiveList');
 
 const fields = {
   intent: document.querySelector('#faqIntent'),
   question: document.querySelector('#faqQuestion'),
   keywords: document.querySelector('#faqKeywords'),
   answer: document.querySelector('#faqAnswer'),
+  sensitiveWord: document.querySelector('#sensitiveWord'),
+  sensitiveOriginalWord: document.querySelector('#sensitiveOriginalWord'),
   humanKeywords: document.querySelector('#humanKeywords'),
   fallbackReply: document.querySelector('#fallbackReply'),
 };
@@ -93,6 +97,28 @@ function renderFaq(items) {
   });
 }
 
+function intentSlug(intent) {
+  return (intent || 'feedback').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'feedback';
+}
+
+function prefillFaqFromFeedback(item) {
+  fields.intent.value = `fix_${intentSlug(item.intent)}`;
+  fields.question.value = item.question;
+  fields.keywords.value = item.question;
+  fields.answer.value = item.latest_reply || '';
+  fields.answer.focus();
+  setStatus('已填入 FAQ 表单，请优化答案后保存');
+}
+
+async function updateFeedbackStatus(question, status) {
+  await api('/api/admin/feedback/status', {
+    method: 'PUT',
+    body: JSON.stringify({ question, status }),
+  });
+  setStatus(status === 'handled' ? '已标记处理' : status === 'ignored' ? '已忽略' : '已重新打开');
+  loadData();
+}
+
 function renderFeedbackTop(items) {
   feedbackTopList.innerHTML = '';
   if (!items.length) {
@@ -102,7 +128,7 @@ function renderFeedbackTop(items) {
 
   items.forEach((item, index) => {
     const row = document.createElement('article');
-    row.className = 'feedback-top-item';
+    row.className = `feedback-top-item status-${item.status || 'open'}`;
 
     const rate = Math.round(item.downvote_rate * 100);
     const reasons = Object.entries(item.reasons || {})
@@ -112,26 +138,101 @@ function renderFeedbackTop(items) {
     const title = document.createElement('strong');
     title.textContent = `#${index + 1} ${item.question}`;
     const stats = document.createElement('p');
-    stats.textContent = `点踩率：${rate}% · 点踩 ${item.downvotes} / 反馈 ${item.total_feedback} · 意图：${item.intent}`;
+    stats.textContent = `点踩率：${rate}% · 点踩 ${item.downvotes} / 反馈 ${item.total_feedback} · 意图：${item.intent} · 状态：${statusLabel(item.status)}`;
     const reasonLine = document.createElement('p');
     reasonLine.textContent = `原因：${reasons}`;
     const reply = document.createElement('p');
     reply.textContent = `最近回复：${item.latest_reply}`;
 
-    row.append(title, stats, reasonLine, reply);
+    const actions = document.createElement('div');
+    actions.className = 'feedback-actions';
+
+    const createFaq = document.createElement('button');
+    createFaq.type = 'button';
+    createFaq.textContent = '新建 FAQ';
+    createFaq.addEventListener('click', () => prefillFaqFromFeedback(item));
+
+    const handled = document.createElement('button');
+    handled.type = 'button';
+    handled.className = 'secondary';
+    handled.textContent = '标记已处理';
+    handled.addEventListener('click', () => updateFeedbackStatus(item.question, 'handled'));
+
+    const ignored = document.createElement('button');
+    ignored.type = 'button';
+    ignored.className = 'danger';
+    ignored.textContent = '忽略';
+    ignored.addEventListener('click', () => updateFeedbackStatus(item.question, 'ignored'));
+
+    const reopen = document.createElement('button');
+    reopen.type = 'button';
+    reopen.className = 'secondary';
+    reopen.textContent = '重新打开';
+    reopen.addEventListener('click', () => updateFeedbackStatus(item.question, 'open'));
+
+    actions.append(createFaq, handled, ignored, reopen);
+    row.append(title, stats, reasonLine, reply, actions);
     feedbackTopList.appendChild(row);
+  });
+}
+
+function statusLabel(status) {
+  const labels = { open: '待优化', handled: '已处理', ignored: '已忽略' };
+  return labels[status] || labels.open;
+}
+
+function renderSensitiveWords(items) {
+  sensitiveList.innerHTML = '';
+  if (!items.length) {
+    sensitiveList.textContent = '暂无敏感词。';
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement('article');
+    row.className = 'sensitive-item';
+
+    const word = document.createElement('strong');
+    word.textContent = item.word;
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'secondary';
+    edit.textContent = '编辑';
+    edit.addEventListener('click', () => {
+      fields.sensitiveWord.value = item.word;
+      fields.sensitiveOriginalWord.value = item.word;
+      fields.sensitiveWord.focus();
+      setStatus('正在编辑敏感词');
+    });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'danger';
+    remove.textContent = '删除';
+    remove.addEventListener('click', async () => {
+      if (!confirm(`删除敏感词：${item.word}？`)) return;
+      await api(`/api/admin/sensitive-words/${encodeURIComponent(item.word)}`, { method: 'DELETE' });
+      setStatus('敏感词已删除');
+      loadData();
+    });
+
+    row.append(word, edit, remove);
+    sensitiveList.appendChild(row);
   });
 }
 
 async function loadData() {
   setStatus('加载中...');
-  const [faqItems, settings, feedbackTop] = await Promise.all([
+  const [faqItems, settings, feedbackTop, sensitiveWords] = await Promise.all([
     api('/api/admin/faq'),
     api('/api/admin/settings'),
     api('/api/admin/feedback/top'),
+    api('/api/admin/sensitive-words'),
   ]);
   renderFaq(faqItems);
   renderFeedbackTop(feedbackTop);
+  renderSensitiveWords(sensitiveWords);
   fields.humanKeywords.value = (settings.human_keywords || []).join('，');
   fields.fallbackReply.value = settings.fallback_reply || '';
   setStatus('已同步');
@@ -166,6 +267,39 @@ settingsForm.addEventListener('submit', async (event) => {
   });
   setStatus('规则已保存');
   loadData();
+});
+
+if (sensitiveForm) {
+  sensitiveForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const word = fields.sensitiveWord.value.trim();
+    const originalWord = fields.sensitiveOriginalWord.value.trim();
+    if (!word) return;
+
+    if (originalWord) {
+      await api(`/api/admin/sensitive-words/${encodeURIComponent(originalWord)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ word }),
+      });
+      setStatus('敏感词已更新');
+    } else {
+      await api('/api/admin/sensitive-words', {
+        method: 'POST',
+        body: JSON.stringify({ word }),
+      });
+      setStatus('敏感词已新增');
+    }
+
+    sensitiveForm.reset();
+    fields.sensitiveOriginalWord.value = '';
+    loadData();
+  });
+}
+
+document.querySelector('#cancelSensitiveEdit')?.addEventListener('click', () => {
+  sensitiveForm.reset();
+  fields.sensitiveOriginalWord.value = '';
+  setStatus('已取消敏感词编辑');
 });
 
 reloadButton.addEventListener('click', loadData);

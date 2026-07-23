@@ -83,4 +83,14 @@ class FeedbackTopItem(BaseModel):
     intent: str = "unknown"
     latest_reply: str = ""
     reasons: dict[str, int] = Field(default_factory=dict)
+    status: str = Field(default="open", pattern="^(open|handled|ignored)$")
+
+
+class FeedbackStatusUpdate(BaseModel):
+    question: str = Field(..., min_length=1)
+    status: str = Field(..., pattern="^(open|handled|ignored)$")
+
+
+class SensitiveWordItem(BaseModel):
+    word: str = Field(..., min_length=1)
 

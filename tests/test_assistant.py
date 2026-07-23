@@ -34,6 +34,16 @@ def test_human_handoff():
     assert response.need_human is True
 
 
+def test_sensitive_word_filter_blocks_message():
+    assistant = CustomerServiceAssistant.from_default_files()
+    response = assistant.handle(ChatRequest(user_id="test", message="这里包含暴力内容"))
+
+    assert response.intent == "sensitive_content"
+    assert response.confidence == 1.0
+    assert response.reply == "您的提问涉及暴力倾向，暂时无法解答。"
+    assert "***" in assistant.sessions[response.session_id].turns[0]["content"]
+
+
 def test_order_status_multi_turn_memory():
     assistant = CustomerServiceAssistant.from_default_files()
     first = assistant.handle(ChatRequest(user_id="test", message="我要查订单"))
@@ -145,6 +155,20 @@ def test_in_memory_session_ttl_expires_state():
 
     assert second.intent != "order_status_followup"
     assert second.context["turn_count"] == "0"
+
+
+def test_stale_slow_reply_does_not_overwrite_timeout_response():
+    assistant = CustomerServiceAssistant.from_default_files()
+    request = ChatRequest(user_id="test", session_id="test-stale", message="slow question")
+    stale_state = assistant._get_state(request)
+
+    timeout_response = assistant.build_timeout_response(request)
+    assistant._remember(stale_state, "slow question", "late reply")
+
+    saved_turns = assistant.sessions[timeout_response.session_id].turns
+    assert saved_turns[-1]["content"] == timeout_response.reply
+    assert all(turn["content"] != "late reply" for turn in saved_turns)
+
 
 def test_order_status_hides_order_from_non_owner():
     assistant = CustomerServiceAssistant.from_default_files()
